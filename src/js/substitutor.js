@@ -2,6 +2,7 @@ export {substitute};
 
 const replaceFunc = {
     Identifier: replaceValsInIdentifier,
+    ArrayExpression: replaceValsInArrayExpression,
     BlockStatement: replaceValsInBlockStatement,
     ExpressionStatement: replaceValsInExpressionStatement,
     VariableDeclaration: replaceValsInVariableDeclaration,
@@ -14,163 +15,113 @@ const replaceFunc = {
     WhileStatement: replaceValsInWhileStatement
 };
 
-function replaceValsInBlockStatement(codeLines, code, vars){
+function replaceValsInBlockStatement(code, vars){
     for(let i=0;i<code.body.length;i++){
-        replaceLocalWithValues(codeLines, code.body[i], vars);
+        code.body[i] = replaceLocalWithValues(code.body[i], vars);
+        if(code.body[i] == null) delete code.body[i];
     }
+    code.body = code.body.filter(value => Object.keys(value).length !== 0);
+    return code;
 }
 
-function replaceValsInExpressionStatement(codeLines, code, vars){
-    let endDiff = code.loc.end.column - code.expression.loc.end.column;
-    replaceLocalWithValues(codeLines,code.expression,vars);
-    code.loc.end.column = code.expression.loc.end.column + endDiff;
+function replaceValsInArrayExpression(code, vars){
+    for(let i=0;i<code.elements.length;i++){
+        code.elements[i] = replaceLocalWithValues(code.elements[i], vars);
+        if(code.elements[i] == null) delete code.elements[i];
+    }
+    return code;
 }
 
-function replaceValsInVariableDeclaration(codeLines, code, vars){
+function replaceValsInExpressionStatement(code, vars){
+    code.expression = replaceLocalWithValues(code.expression,vars);
+    if(code.expression == null) {delete code.expression; return null;}
+    return code;
+}
+
+function replaceValsInVariableDeclaration(code, vars){
     let arg = code.declarations[0];
-    let endDiff = code.loc.end.column - arg.init.loc.end.column;
-    replaceLocalWithValues(codeLines,arg.init,vars);
-    code.loc.end.column = arg.init.loc.end.column + endDiff;
-    let valueLoc = arg.init.loc;
-    vars[arg.id.name] = getStringFromCode(codeLines,valueLoc.start.line, valueLoc.start.column, valueLoc.end.line, valueLoc.end.column);
-    removeStringFromCode(codeLines,code.loc.start.line, code.loc.start.column, code.loc.end.line, code.loc.end.column);
+    arg.init = replaceLocalWithValues(arg.init,vars);
+    vars[arg.id.name] = arg.init;
+    return null;
 }
 
-function replaceValsInIdentifier(codeLines, code, vars){
+function replaceValsInIdentifier(code, vars){
     if(code.name in vars){
-        let loc = code.loc;
-        removeStringFromCode(codeLines, loc.start.line, loc.start.column, loc.end.line, loc.end.column);
-        codeLines[loc.start.line - 1] = codeLines[loc.start.line - 1].slice(0, loc.start.column) + vars[code.name] + codeLines[loc.start.line - 1].slice(loc.start.column);
-        loc.end.column += vars[code.name].length - (loc.end.column - loc.start.column);
-        return true;
+        code = vars[code.name];
     }
+    return code;
 }
 
-function replaceValsInMemberExpression(codeLines, code, vars){
-    let endDiff = code.loc.end.column - code.object.loc.end.column;
-    let propDiff = code.property.loc.start.column - code.object.loc.end.column;
-    replaceLocalWithValues(codeLines,code.object,vars);
-    code.loc.end.column = code.object.loc.end.column + endDiff;
-    let prevStart = code.property.loc.start.column;
-    code.property.loc.start.column = code.object.loc.end.column + propDiff;
-    code.property.loc.end.column += code.property.loc.start.column - prevStart;
-    endDiff = code.loc.end.column - code.property.loc.end.column;
-    replaceLocalWithValues(codeLines, code.property, vars);
-    code.loc.end.column = code.property.loc.end.column + endDiff;
+function replaceValsInMemberExpression(code, vars){
+    code.object = replaceLocalWithValues(code.object,vars);
+    code.property = replaceLocalWithValues(code.property, vars);
+    return code;
 }
 
-function replaceValsInBinaryExpression(codeLines, code, vars){
-    let endDiff = code.loc.end.column - code.left.loc.end.column;
-    let firstDiff = code.right.loc.start.column - code.left.loc.end.column;
-    if(replaceLocalWithValues(codeLines, code.left, vars)){
-        let line = code.loc.start.line - 1;
-        codeLines[line] = codeLines[line].slice(0, code.left.loc.end.column) + ' ' + codeLines[line].slice(code.left.loc.end.column);
+function replaceValsInBinaryExpression(code, vars){
+    code.left = replaceLocalWithValues(code.left, vars);
+    code.right = replaceLocalWithValues(code.right, vars);
+    return calculate(code);
+}
+
+function replaceValsInUnaryExpression(code, vars){
+    code.argument = replaceLocalWithValues(code.argument, vars);
+    return code;
+}
+
+function replaceValsInReturnStatement(code, vars){
+    code.argument = replaceLocalWithValues(code.argument, vars);
+    return code;
+}
+
+function replaceValsInAssignmentExpression(code, vars){
+    code.right = replaceLocalWithValues(code.right,vars);
+    let arg = code.left;
+    if(getName(arg) in vars) {
+        if(arg.type === 'Identifier')
+            vars[arg.name] = code.right;
+        else{
+            if(arg.property.type === 'Literal')
+                vars[arg.object.name][arg.property.raw] = code.right;
+            else
+                arg.property = replaceLocalWithValues(arg.property);
+        }
+        return null;
     }
-
-    code.loc.end.column = code.left.loc.end.column + endDiff;
-    let prevStart = code.right.loc.start.column;
-    code.right.loc.start.column = code.left.loc.end.column + firstDiff;
-    code.right.loc.end.column += code.right.loc.start.column - prevStart;
-    endDiff = code.loc.end.column - code.right.loc.end.column;
-    replaceLocalWithValues(codeLines, code.right, vars);
-    code.loc.end.column = code.right.loc.end.column + endDiff;
+    return code;
 }
 
-function replaceValsInUnaryExpression(codeLines, code, vars){
-    let endDiff = code.loc.end.column - code.argument.loc.end.column;
-    replaceLocalWithValues(codeLines, code.argument, vars);
-    code.loc.end.columnn = code.argument.loc.end.column + endDiff;
-}
-
-function replaceValsInReturnStatement(codeLines, code, vars){
-    replaceLocalWithValues(codeLines, code.argument, vars);
-}
-
-function replaceValsInAssignmentExpression(codeLines, code, vars){
-    let endDiff = code.loc.end.column - code.right.loc.end.column;
-    replaceLocalWithValues(codeLines,code.right,vars);
-    code.loc.end.column = code.right.loc.end.column + endDiff;
-    if(getName(code.left) in vars) {
-        updateVar(vars, code.left, getStringFromCode(
-            codeLines, code.right.loc.start.line, code.right.loc.start.column, code.right.loc.end.line, code.right.loc.end.column));
-        removeStringFromCode(codeLines, code.loc.start.line, code.loc.start.column, code.loc.end.line, code.loc.end.column);
-    }
-}
-
-function replaceValsInIfStatement(codeLines, code, vars){
+function replaceValsInIfStatement(code, vars){
     let varsCopy = {};
     for (let i in vars)
         varsCopy[i] = vars[i];
-    replaceLocalWithValues(codeLines, code.test,vars);
-    replaceLocalWithValues(codeLines,code.consequent,varsCopy);
+    code.test = replaceLocalWithValues(code.test,vars);
+    code.consequent = replaceLocalWithValues(code.consequent,varsCopy);
     if(code.alternate != null)
-        replaceLocalWithValues(codeLines,code.alternate,vars);
+        code.alternate = replaceLocalWithValues(code.alternate,vars);
+    return code;
 }
 
-function replaceValsInWhileStatement(codeLines, code, vars){
+function replaceValsInWhileStatement(code, vars){
     let varsCopy = {};
     for (let i in vars)
         varsCopy[i] = vars[i];
-    replaceLocalWithValues(codeLines, code.test,vars);
-    replaceLocalWithValues(codeLines,code.body,varsCopy);
+    code.test = replaceLocalWithValues(code.test,vars);
+    code.body = replaceLocalWithValues(code.body,varsCopy);
+    return code;
 }
 
 
-function replaceLocalWithValues(codeLines, code, vars){
-    if(code.type === 'Literal' || code.type === 'UpdateExpression') return;
+function replaceLocalWithValues(code, vars){
+    if(code.type === 'Literal' || code.type === 'UpdateExpression') return code;
     let func = replaceFunc[code.type];
-    return func(codeLines,code,vars);
+    return func(code,vars);
 }
 
-function substitute(codeLines, func){
-    //let localVars = createVarsMap(codeLines, func.body.body);
-    replaceLocalWithValues(codeLines, func.body, {});
-    return removeEmptyLines(codeLines);
-}
+function substitute(func){
+    replaceLocalWithValues(func.body, {});
+    return func;
 
-function getStringFromCode(codeLines, startLine, startCol, endLine, endCol){
-    let str = '';
-    startLine--; endLine--;
-    if(endLine > startLine){
-        str += codeLines[startLine].substring(startCol);
-        for(let i=startLine+1;i<endLine;i++)
-            str += '\n'+codeLines[i]+'\n';
-        str += codeLines[endLine].substring(0,endCol);
-    }
-    else
-        str += codeLines[startLine].substring(startCol,endCol);
-
-    return str;
-}
-
-function removeStringFromCode(codeLines, startLine, startCol, endLine, endCol){
-
-    if(endLine>startLine) {
-        codeLines[startLine - 1] = codeLines[startLine - 1].substring(0,startCol);
-        for(let i=startLine;i<endLine - 1;i++)
-            codeLines[i] = '';
-        codeLines[endLine - 1] = codeLines[endLine - 1].substring(endCol);
-    }
-    else
-        codeLines[startLine - 1] = codeLines[startLine - 1].replace(codeLines[startLine - 1].substring(startCol, endCol+1), '');
-}
-
-function removeEmptyLines(codeLines){
-    let linesToRemove = [];
-    for(let i=0;i<codeLines.length;i++){
-        if(isEmpty(codeLines[i]))
-            linesToRemove.push(i);
-    }
-    return codeLines.filter(function (value, index){return !linesToRemove.includes(index);});
-}
-
-function isEmpty(str){
-    let toRemove = true;
-    for(let j=0;j<str.length;j++){
-        if(str.charAt(j) !== ' ' && str.charAt(j) !== '\t')
-            toRemove = false;
-    }
-    return toRemove;
 }
 
 function getName(exp){
@@ -182,15 +133,45 @@ function getName(exp){
     }
 }
 
-function updateVar(vars, variable, value){
-    if(variable.type === 'Identifier')
-        vars[variable.name] = value;
-    else{
-        let arr = vars[variable.object.name];
-        if(variable.property.type === 'Literal')
-            arr[variable.property.raw] = value;
-        else
-            arr[variable.property.name] = value;
-    }
+function calculate(binexp){
+    if(binexp.left.type === 'BinaryExpression') binexp.left = calculate(binexp.left);
+    if(binexp.right.type === 'BinaryExpression') binexp.right = calculate(binexp.right);
+    return calcHelp(binexp);
+}
 
+function calcHelp(binexp){
+    if(binexp.left.type !== 'Literal' && binexp.right.type !== 'Literal') return binexp;
+    if(binexp.left.type === 'Literal' && binexp.right.type === 'Literal')
+        return calcBothLit(binexp);
+    return calculateLit(binexp);
+}
+
+function calculateLit(binexp) {
+    if ((binexp.left.type === 'Literal' && binexp.left.raw === '0') || (binexp.right.type === 'Literal' && binexp.right.raw === '0'))
+        binexp = removeZeroes(binexp);
+    return calcLitHelp(binexp);
+}
+
+function calcLitHelp(binexp){
+    if(binexp.type !== 'BinaryExpression' || !(binexp.left.type === 'Literal' && binexp.right.type === 'Literal')) return binexp;
+    return calcBothLit(binexp);
+}
+
+function calcBothLit(binexp){
+    let left = binexp.left; let right = binexp.right; let op = binexp.operator;
+    let val = eval(left.raw + ' ' + op + ' ' + right.raw);
+    return {'type': 'Literal', 'value': eval(val), 'raw': eval.toString()};
+}
+
+function removeZeroes(binExp){
+    if(binExp.operator === '*' || binExp.operator === '/')
+        return {'type': 'Literal', 'value': 0, 'raw': '0'};
+    return handlePlusMinus(binExp);
+}
+
+function handlePlusMinus(binExp){
+    if(binExp.operator === '+')
+        return binExp.right.type === 'Literal'? binExp.left : binExp.right;
+    return binExp.right.type === 'Literal'?
+        {'type': 'UnaryExpression', 'operator': '-', 'argument':{'type': 'Literal', 'value': 0, 'raw': '0'}} : binExp.left;
 }
