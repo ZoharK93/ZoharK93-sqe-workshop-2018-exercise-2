@@ -86,62 +86,6 @@ describe('The javascript analyzer', () => {
 
 });
 
-/*describe('The javascript analyzer', () => {
-    it('is analyzing a function with binary expression literal assignment correctly', () => {
-        let func = 'function f(x,y) {\nlet a = 5;\nlet b = 2;\nlet c = a + b;\nreturn c;\n}';
-        let subCode = getSubstitution(parseCode(func));
-        assert.equal(subCode,'function f(x, y) {\n    return 7;\n}');});
-    it('is analyzing a function with binary expression assignment correctly', () => {
-        let func = 'function f(x,y) {\nlet a = x*y;\nlet b = 3;\nlet c = a + b;\nreturn c;\n}';
-        let subCode = getSubstitution(parseCode(func));
-        assert.equal(subCode,'function f(x, y) {\n    return x * y + 3;\n}');});
-    it('is analyzing a function with binary expression assignment correctly', () => {
-        let func = 'function f(x,y) {\nlet a = x*y;\nlet b = 3;\nlet c = b + a;\nreturn c;\n}';
-        let subCode = getSubstitution(parseCode(func));
-        assert.equal(subCode,'function f(x, y) {\n    return 3 + x * y;\n}');});
-
-});
-
-describe('The javascript analyzer', () => {
-    it('is analyzing a function with binary expression assignment correctly', () => {
-        let func = 'function f(x,y) {\nlet a = x*y;\nlet b = 0;\nlet c = a + b;\nreturn c;\n}';
-        let subCode = getSubstitution(parseCode(func));
-        assert.equal(subCode,'function f(x, y) {\n    return x * y;\n}');});
-    it('is analyzing a function with binary expression assignment correctly', () => {
-        let func = 'function f(x,y) {\nlet a = x*y;\nlet b = 0;\nlet c = b + a;\nx++;\nreturn c;\n}';
-        let subCode = getSubstitution(parseCode(func));
-        assert.equal(subCode,'function f(x, y) {\n    x++;\n    return x * y;\n}');});
-    it('is analyzing a function with zero assignment correctly', () => {
-        let func = 'function f(x){\nlet a=x;\nlet b=0;\nlet c=a-b;\nreturn c;\n}';
-        let subCode = getSubstitution(parseCode(func));
-        assert.equal(subCode,'function f(x) {\n    return x;\n}');});
-    it('is analyzing a function with zero negative assignment correctly', () => {
-        let func = 'function f(x){\nlet a=x;\nlet b=0;\nlet c=b-a;\nreturn c;\n}';
-        let subCode = getSubstitution(parseCode(func));
-        assert.equal(subCode,'function f(x) {\n    return -x;\n}');});
-
-});
-
-describe('The javascript analyzer', () => {
-    it('is analyzing a function with zero assignment correctly', () => {
-        let func = 'function f(x){\nlet a=x;\nlet b=0;\nlet c=a+b;\nreturn c;\n}';
-        let subCode = getSubstitution(parseCode(func));
-        assert.equal(subCode,'function f(x) {\n    return x;\n}');});
-    it('is analyzing a function with zero negative assignment correctly', () => {
-        let func = 'function f(x){\nlet a=x;\nlet b=0;\nlet c=b+a;\nreturn c;\n}';
-        let subCode = getSubstitution(parseCode(func));
-        assert.equal(subCode,'function f(x) {\n    return x;\n}');});
-    it('is analyzing a function with zero multiplication correctly', () => {
-        let func = 'function f(x){\nlet a=x;\nlet b=0;\nlet c=b*a;\nreturn c;\n}';
-        let subCode = getSubstitution(parseCode(func));
-        assert.equal(subCode,'function f(x) {\n    return 0;\n}');});
-    it('is analyzing a function with zero division correctly', () => {
-        let func = 'function f(x){\nlet a=x;\nlet b=0;\nlet c=b/a;\nreturn c;\n}';
-        let subCode = getSubstitution(parseCode(func));
-        assert.equal(subCode,'function f(x) {\n    return 0;\n}');});
-
-});*/
-
 function getSubstitution(code){
     let finalCode = substituteFunc(code.body);
     return revertCode(finalCode);
