@@ -27,7 +27,6 @@ function replaceValsInBlockStatement(code, vars){
 function replaceValsInArrayExpression(code, vars){
     for(let i=0;i<code.elements.length;i++){
         code.elements[i] = replaceLocalWithValues(code.elements[i], vars);
-        if(code.elements[i] == null) delete code.elements[i];
     }
     return code;
 }
@@ -53,8 +52,10 @@ function replaceValsInIdentifier(code, vars){
 }
 
 function replaceValsInMemberExpression(code, vars){
-    code.object = replaceLocalWithValues(code.object,vars);
-    code.property = replaceLocalWithValues(code.property, vars);
+    let name = code.object.name;
+    if(name in vars){
+        code = vars[name].elements[code.property.value];
+    }
     return code;
 }
 
@@ -70,7 +71,8 @@ function replaceValsInUnaryExpression(code, vars){
 }
 
 function replaceValsInReturnStatement(code, vars){
-    code.argument = replaceLocalWithValues(code.argument, vars);
+    if(code.argument != null)
+        code.argument = replaceLocalWithValues(code.argument, vars);
     return code;
 }
 
@@ -78,16 +80,14 @@ function replaceValsInAssignmentExpression(code, vars){
     code.right = replaceLocalWithValues(code.right,vars);
     let arg = code.left;
     if(getName(arg) in vars) {
-        if(arg.type === 'Identifier')
+        if (arg.type === 'Identifier')
             vars[arg.name] = code.right;
-        else{
-            if(arg.property.type === 'Literal')
-                vars[arg.object.name][arg.property.raw] = code.right;
-            else
-                arg.property = replaceLocalWithValues(arg.property);
-        }
+        else
+            vars[arg.object.name].elements[arg.property.value] = code.right;
         return null;
     }
+    else if (arg.type === 'MemberExpression')
+        arg.property = replaceLocalWithValues(arg.property,vars);
     return code;
 }
 
@@ -136,42 +136,14 @@ function getName(exp){
 function calculate(binexp){
     if(binexp.left.type === 'BinaryExpression') binexp.left = calculate(binexp.left);
     if(binexp.right.type === 'BinaryExpression') binexp.right = calculate(binexp.right);
-    return calcHelp(binexp);
-}
-
-function calcHelp(binexp){
-    if(binexp.left.type !== 'Literal' && binexp.right.type !== 'Literal') return binexp;
     if(binexp.left.type === 'Literal' && binexp.right.type === 'Literal')
         return calcBothLit(binexp);
-    return calculateLit(binexp);
-}
-
-function calculateLit(binexp) {
-    if ((binexp.left.type === 'Literal' && binexp.left.raw === '0') || (binexp.right.type === 'Literal' && binexp.right.raw === '0'))
-        binexp = removeZeroes(binexp);
-    return calcLitHelp(binexp);
-}
-
-function calcLitHelp(binexp){
-    if(binexp.type !== 'BinaryExpression' || !(binexp.left.type === 'Literal' && binexp.right.type === 'Literal')) return binexp;
-    return calcBothLit(binexp);
+    return binexp;
 }
 
 function calcBothLit(binexp){
     let left = binexp.left; let right = binexp.right; let op = binexp.operator;
     let val = eval(left.raw + ' ' + op + ' ' + right.raw);
-    return {'type': 'Literal', 'value': eval(val), 'raw': eval.toString()};
+    return {'type': 'Literal', 'value': val, 'raw': val.toString()};
 }
 
-function removeZeroes(binExp){
-    if(binExp.operator === '*' || binExp.operator === '/')
-        return {'type': 'Literal', 'value': 0, 'raw': '0'};
-    return handlePlusMinus(binExp);
-}
-
-function handlePlusMinus(binExp){
-    if(binExp.operator === '+')
-        return binExp.right.type === 'Literal'? binExp.left : binExp.right;
-    return binExp.right.type === 'Literal'?
-        {'type': 'UnaryExpression', 'operator': '-', 'argument':{'type': 'Literal', 'value': 0, 'raw': '0'}} : binExp.left;
-}
